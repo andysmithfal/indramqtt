@@ -92,8 +92,10 @@ def mqttpublish(client, topic):
     pluggedIn = response.json().get("data").get("device").get("currentState").get("ev").get("isPluggedIn")
     #2022-08-11T22:59:23.052Z
     lastUpdated = response.json().get("data").get("device").get("currentState").get("ev").get("lastUpdated")
-    #convert the charge rate from e.g. -7128 to 7.1kW
-    chargeRate = str(round((-chargeRate)/1000,1))+"kW"
+    #convert the charge rate from e.g. -7128 to kw
+    if chargeRate < 0:
+        chargeRate = -chargeRate
+    chargeRate = str(round(chargeRate/1000,1))
 
     kwhToday = energyresponse.json().get("data").get("device").get("energyConsumption").get("totals").get("actualEnergyConsumptionWh")
     kwhToday = kwhToday/1000
