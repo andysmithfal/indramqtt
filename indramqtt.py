@@ -1,9 +1,10 @@
-from sqlite3 import connect
 import requests
 import json
 import paho.mqtt.client as mqtt
 import time
 import os
+from datetime import datetime
+
 
 username = os.environ['indrausername']
 password = os.environ['indrapassword']
@@ -57,6 +58,18 @@ def mqttpublish(client, topic):
         "deviceId": deviceID
     }
     })
+
+    now = datetime.now()
+
+    energypayload = json.dumps({
+    "query": "query GetDeviceEnergyConsumption($from: String, $to: String, $deviceId: String) {  device(deviceId: $deviceId) {    id    energyConsumption(from: $from, to: $to) {      from      to      totals {        actualEnergyConsumptionWh        cost      }    }  }}",
+    "variables": {
+        "from": now.strftime("%Y-%m-%d")+"T00:00:00.000Z",
+        "to": now.strftime("%Y-%m-%d")+"T23:59:59.999Z",
+        "deviceId": deviceID
+    }
+    })
+
     headers = {
     'Accept': 'application/json',
     'Accept-Language': 'en-gb',
@@ -69,6 +82,7 @@ def mqttpublish(client, topic):
     }
 
     response = requests.request("POST", url, headers=headers, data=payload)
+    energyresponse = requests.request("POST", url, headers=headers, data=energypayload)
 
     #status is IDLE or CHARGING
     status = response.json().get("data").get("device").get("currentState").get("ev").get("status")
@@ -81,11 +95,19 @@ def mqttpublish(client, topic):
     #convert the charge rate from e.g. -7128 to 7.1kW
     chargeRate = str(round((-chargeRate)/1000,1))+"kW"
 
+    kwhToday = energyresponse.json().get("data").get("device").get("energyConsumption").get("totals").get("actualEnergyConsumptionWh")
+    kwhToday = kwhToday/1000
+
+    costToday = energyresponse.json().get("data").get("device").get("energyConsumption").get("totals").get("cost")
+    costToday = "£"+str(round(costToday/100,2))
+
     # print(chargeRate)
     client.publish(topic+"/status", status)
     client.publish(topic+"/chargeRate", chargeRate)
     client.publish(topic+"/pluggedIn", pluggedIn)
     client.publish(topic+"/lastUpdated", lastUpdated)
+    client.publish(topic+"/kwhToday", kwhToday)
+    client.publish(topic+"/costToday", costToday)
 
 #print(response.text)
 client = connect_mqtt()
