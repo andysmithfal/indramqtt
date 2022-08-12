@@ -10,11 +10,12 @@ password = os.environ['indrapassword']
 deviceID = os.environ['indradeviceid']
 
 mqttserver = os.environ['mqttserver']
-mqttport = os.environ['mqttport']
+mqttport = int(os.environ['mqttport'])
 mqttuser = os.environ['mqttuser']
 mqttpassword = os.environ['mqttpassword']
 mqtttopic = os.environ['mqtttopic']
 
+print(username + " " + password + " " + deviceID + " " + mqttserver + " " + mqttport + " " + mqttuser + " " + mqttpassword + " " + mqtttopic )
 
 def connect_mqtt():
     def on_connect(client, userdata, flags, rc):
