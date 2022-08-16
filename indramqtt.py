@@ -3,7 +3,7 @@ import json
 import paho.mqtt.client as mqtt
 import time
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 username = os.environ['indrausername']
@@ -60,11 +60,21 @@ def mqttpublish(client, topic):
     })
 
     now = datetime.now()
+    monthAgo = now - timedelta(days=28)
 
     energypayload = json.dumps({
     "query": "query GetDeviceEnergyConsumption($from: String, $to: String, $deviceId: String) {  device(deviceId: $deviceId) {    id    energyConsumption(from: $from, to: $to) {      from      to      totals {        actualEnergyConsumptionWh        cost      }    }  }}",
     "variables": {
         "from": now.strftime("%Y-%m-%d")+"T00:00:00.000Z",
+        "to": now.strftime("%Y-%m-%d")+"T23:59:59.999Z",
+        "deviceId": deviceID
+    }
+    })
+
+    energymonthpayload = json.dumps({
+    "query": "query GetDeviceEnergyConsumption($from: String, $to: String, $deviceId: String) {  device(deviceId: $deviceId) {    id    energyConsumption(from: $from, to: $to) {      from      to      totals {        actualEnergyConsumptionWh        cost      }    }  }}",
+    "variables": {
+        "from": monthAgo.strftime("%Y-%m-%d")+"T00:00:00.000Z",
         "to": now.strftime("%Y-%m-%d")+"T23:59:59.999Z",
         "deviceId": deviceID
     }
@@ -83,8 +93,12 @@ def mqttpublish(client, topic):
 
     response = requests.request("POST", url, headers=headers, data=payload)
     energyresponse = requests.request("POST", url, headers=headers, data=energypayload)
+    energymonthresponse = requests.request("POST", url, headers=headers, data=energymonthpayload)
+    # print(response.text())
+    # print(energyresponse.text())
+    # print(energymonthresponse.text())
 
-    #status is IDLE or CHARGING
+    #status is DISCONNECTED, IDLE or CHARGING (maybe more?)
     status = response.json().get("data").get("device").get("currentState").get("ev").get("status")
     #in watts (will be a minus number when car is charging)
     chargeRate = response.json().get("data").get("device").get("currentState").get("ev").get("chargeRate").get("total")
@@ -100,8 +114,14 @@ def mqttpublish(client, topic):
     kwhToday = energyresponse.json().get("data").get("device").get("energyConsumption").get("totals").get("actualEnergyConsumptionWh")
     kwhToday = kwhToday/1000
 
+    kwhMonth = energymonthresponse.json().get("data").get("device").get("energyConsumption").get("totals").get("actualEnergyConsumptionWh")
+    kwhMonth = kwhMonth/1000
+
     costToday = energyresponse.json().get("data").get("device").get("energyConsumption").get("totals").get("cost")
     costToday = "£"+str(round(costToday/100,2))
+
+    costMonth = energymonthresponse.json().get("data").get("device").get("energyConsumption").get("totals").get("cost")
+    costMonth = "£"+str(round(costMonth/100,2))
 
     # print(chargeRate)
     client.publish(topic+"/status", status)
@@ -110,6 +130,8 @@ def mqttpublish(client, topic):
     client.publish(topic+"/lastUpdated", lastUpdated)
     client.publish(topic+"/kwhToday", kwhToday)
     client.publish(topic+"/costToday", costToday)
+    client.publish(topic+"/kwhMonth", kwhMonth)
+    client.publish(topic+"/costMonth", costMonth)
 
 #print(response.text)
 client = connect_mqtt()
